@@ -74,13 +74,15 @@ module Resque
         jlock = lock(*args)
 
         rlock = run_lock(*args)
-        Resque.redis.set(rlock, Time.now.to_i)
-
-        begin
-          yield
-        ensure
-          Resque.redis.del(rlock)
-          Resque.redis.del(jlock)
+        if Resque.redis.setnx(rlock, Time.now.to_i)
+          begin
+            yield
+          ensure
+            Resque.redis.del(rlock)
+            Resque.redis.del(jlock)
+          end
+        else
+          logger.warn("ignoring duplicate job because already running: #{args.inspect}")
         end
       end
 
